@@ -4,28 +4,24 @@ use ckb_mock_tx_types::ReprMockTransaction;
 use ckb_types::H256;
 use core::marker::PhantomData;
 use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength, Spec};
+use halo2_proofs::halo2curves::bn256::G1Affine;
+use halo2_proofs::transcript::TranscriptWriterBuffer;
 use halo2_proofs::{
     circuit::Value,
-    pasta::{pallas, vesta, Fp},
-    plonk::{create_proof, keygen_pk, keygen_vk, VerifyingKey},
+    plonk::{create_proof, keygen_pk, keygen_vk},
     poly::commitment::Params,
     transcript::{Blake2bWrite, Challenge255},
+    SerdeFormat,
 };
-use poseidon_natives::{HashCircuit, MySpec, K};
+use poseidon_natives::{
+    Engine, Fp, HashCircuit, KZGCommitmentScheme, MySpec, ParamsKZG, Prover, VerifyingKey, K,
+};
 use rand::rngs::OsRng;
 use serde_json::{from_str, to_string_pretty};
 
 fn run_poseidon<S, const WIDTH: usize, const RATE: usize, const L: usize>(
     preimage: Vec<u8>,
-) -> Result<
-    (
-        Vec<u8>,
-        pallas::Base,
-        Params<vesta::Affine>,
-        VerifyingKey<vesta::Affine>,
-    ),
-    String,
->
+) -> Result<(Vec<u8>, Fp, ParamsKZG, VerifyingKey), String>
 where
     S: Spec<Fp, WIDTH, RATE> + Copy + Clone,
 {
@@ -38,7 +34,7 @@ where
         ));
     }
 
-    let mut message = [pallas::Base::zero(); L];
+    let mut message = [Fp::zero(); L];
     for i in 0..((preimage.len() + 31) / 32) {
         let start = i * 32;
         let count = core::cmp::min(32, preimage.len() - start);
@@ -46,12 +42,12 @@ where
         for j in 0..count {
             data[j / 8] |= (preimage[start + j] as u64) << ((j % 8) * 8);
         }
-        message[i] = pallas::Base::from_raw(data);
+        message[i] = Fp::from_raw(data);
     }
-    let output = poseidon::Hash::<_, S, ConstantLength<L>, WIDTH, RATE>::init().hash(message);
+    let output = poseidon::Hash::<Fp, S, ConstantLength<L>, WIDTH, RATE>::init().hash(message);
 
     // Initialize the polynomial commitment parameters
-    let params: Params<vesta::Affine> = Params::new(K);
+    let params = ParamsKZG::setup(K, OsRng);
     let empty_circuit = HashCircuit::<S, WIDTH, RATE, L> {
         message: Value::unknown(),
         output: Value::unknown(),
@@ -70,8 +66,8 @@ where
     };
 
     // Create a proof
-    let mut transcript = Blake2bWrite::<_, _, Challenge255<_>>::init(vec![]);
-    create_proof(
+    let mut transcript = Blake2bWrite::<_, G1Affine, Challenge255<G1Affine>>::init(vec![]);
+    create_proof::<KZGCommitmentScheme, Prover<'_, Engine>, _, _, _, _>(
         &params,
         &pk,
         &[circuit],
@@ -104,7 +100,8 @@ fn main() {
     std::fs::write("params.bin", &params_data).expect("write");
 
     let mut vk_data = vec![];
-    vk.write(&mut vk_data).expect("write");
+    vk.write(&mut vk_data, SerdeFormat::RawBytes)
+        .expect("write");
     std::fs::write("vk.bin", &vk_data).expect("write");
 
     build_ckb_tx(&proof, &output_data, &params_data, &vk_data, &args[2]);
