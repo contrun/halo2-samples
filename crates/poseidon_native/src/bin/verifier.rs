@@ -1,11 +1,15 @@
 use halo2_gadgets::poseidon::primitives::Spec;
+use halo2_proofs::poly::kzg::strategy::SingleStrategy;
+use halo2_proofs::transcript::TranscriptReadBuffer;
 use halo2_proofs::{
-    pasta::{vesta, Fp},
-    plonk::{verify_proof, SingleVerifier, VerifyingKey},
+    plonk::verify_proof,
     poly::commitment::Params,
     transcript::{Blake2bRead, Challenge255},
+    SerdeFormat,
 };
-use poseidon_natives::MySpec;
+use poseidon_natives::{
+    Engine, Fp, HashCircuit, KZGCommitmentScheme, MySpec, ParamsKZG, Verifier, VerifyingKey,
+};
 
 fn verify_poseidon<S, const WIDTH: usize, const RATE: usize, const L: usize>(
     proof: &[u8],
@@ -17,12 +21,14 @@ where
     S: Spec<Fp, WIDTH, RATE> + Copy + Clone,
 {
     // Initialize the polynomial commitment parameters
-    let params: Params<vesta::Affine> =
-        Params::read(&mut &params_data[..]).map_err(|e| e.to_string())?;
+    let params: ParamsKZG = Params::read(&mut &params_data[..]).map_err(|e| e.to_string())?;
 
     // Initialize the verifying key
-    let vk: VerifyingKey<vesta::Affine> =
-        VerifyingKey::read(&mut &vk_data[..]).map_err(|e| e.to_string())?;
+    let vk: VerifyingKey = VerifyingKey::read::<_, HashCircuit<S, WIDTH, RATE, L>>(
+        &mut &vk_data[..],
+        SerdeFormat::RawBytes,
+    )
+    .map_err(|e| e.to_string())?;
 
     if output_data.len() != 32 {
         return Err(format!("Invalid output data length: {}", output_data.len()));
@@ -35,10 +41,16 @@ where
         Fp::from_raw(raw)
     };
 
-    let strategy = SingleVerifier::new(&params);
+    let strategy = SingleStrategy::new(&params);
     let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
-    verify_proof(&params, &vk, strategy, &[&[&[output]]], &mut transcript)
-        .map_err(|e| e.to_string())
+    verify_proof::<
+        KZGCommitmentScheme,
+        Verifier<'_, Engine>,
+        Challenge255<_>,
+        Blake2bRead<_, _, Challenge255<_>>,
+        SingleStrategy<'_, _>,
+    >(&params, &vk, strategy, &[&[&[output]]], &mut transcript)
+    .map_err(|e| e.to_string())
 }
 
 fn main() {
