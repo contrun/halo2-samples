@@ -15,8 +15,8 @@ path = "src/bin/verifier.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-halo2_gadgets = { path = "../../../halo2/halo2_gadgets" }
-halo2_proofs =  { path = "../../../halo2/halo2_proofs" }
+halo2_proofs = { git = 'https://github.com/contrun/halo2', branch = 'no_std_temp' }
+halo2_gadgets = { git = 'https://github.com/contrun/halo2', branch = 'no_std_temp' }
 
 # Prover only std related components
 rand = "0.8"

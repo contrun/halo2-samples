@@ -479,6 +479,7 @@ dependencies = [
 [[package]]
 name = "halo2_gadgets"
 version = "0.2.0"
+source = "git+https://github.com/contrun/halo2?branch=no_std_temp#114665875893d55b873dc0c703987758973a46c4"
 dependencies = [
  "arrayvec",
  "bitvec",
@@ -496,6 +497,7 @@ dependencies = [
 [[package]]
 name = "halo2_proofs"
 version = "0.2.0"
+source = "git+https://github.com/contrun/halo2?branch=no_std_temp#114665875893d55b873dc0c703987758973a46c4"
 dependencies = [
  "blake2b_simd",
  "cfg-if 0.1.10",
