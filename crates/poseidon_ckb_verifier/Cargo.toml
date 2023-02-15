@@ -2,10 +2,11 @@
 name = "poseidon_ckb_verifier"
 version = "0.1.0"
 edition = "2021"
+resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 ckb-std = "0.10.0"
-halo2_proofs = { git = "https://github.com/xxuejie/halo2", rev = "81a100d" }
-halo2_gadgets = { git = "https://github.com/xxuejie/halo2", rev = "81a100d" }
+halo2_gadgets = { path = "../../../halo2/halo2_gadgets" }
+halo2_proofs =  { path = "../../../halo2/halo2_proofs" }
